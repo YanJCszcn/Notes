@@ -1,0 +1,111 @@
+1. DPDK Linux install and getting start: http://doc.dpdk.org/guides/linux_gsg/#.
+    DPDK is open source. It provide NIC driver which can transfer data much faster between NIC and CPU RAM.
+2. Pktgen is an application SW which can use DPDK NIC driver. https://pktgen-dpdk.readthedocs.io/en/latest/getting_started.html。
+3. Not all the NIC or PC supports DPDK. Supported hardware list is here: http://core.dpdk.org/supported/
+4. Below is a list of the installation process on my lab PC. OS is Ubuntu. 
+
+PS. TRex is another network traffic test SW. https://trex-tgn.cisco.com/. Have not tried it.
+
+DPDK & Pktgen installation:
+
+$ sudo vi /etc/default/grub
+GRUB_CMDLINE_LINUX_DEFAULT="default_hugepagesz=1G hugepagesz=1G hugepages=4" (1GB huge page setup)
+GRUB_CMDLINE_LINUX_DEFAULT="default_hugepagesz=2M hugepagesz=2M hugepages=2048" (2MB huge page setup)
+$ sudo update-grub
+$ mkdir /mnt/huge
+$ mount -t hugetlbfs nodev /mnt/huge
+$ sudo vi /etc/fstab (!TAB interval!)
+nodev    /mnt/huge    hugetlbfs    defaults    0    0
+$ sudo reboot
+
+$ echo "export DPDK_DIR=/usr/src/dpdk-19.11" >> ~/.bashrc
+$ echo "export DPDK_TARGET=x86_64-native-linuxapp-gcc" >> ~/.bashrc
+$ echo "export DPDK_BUILD=\$DPDK_DIR/\$DPDK_TARGET" >> ~/.bashrc
+$ . ./.bashrc
+
+#sudo apt-get install -y make coreutils gcc-multilib python libnuma-dev curl
+$ sudo apt-get install -y make libnuma-dev
+$ curl -LO http://fast.dpdk.org/rel/dpdk-xx.xx.x.tar.xz
+$ sudo tar xvfJ dpdk-19.11.tar.xz -C /usr/src/
+$ cd $DPDK_DIR
+$ sudo make install T=$DPDK_TARGET DESTDIR=install
+
+$ cd $DPDK_DIR
+$ cd $DPDK_TARGET
+$ sudo modprobe uio
+$ sudo insmod $DPDK_DIR/$DPDK_TARGET/kmod/igb_uio.ko 
+$ cd ../usertools/
+$ python3 $DPDK_DIR/usertools/dpdk-devbind.py --status
+
+Network devices using kernel driver
+===================================
+0000:00:1f.6 'Ethernet Connection (7) I219-LM 15bb' if=eno1 drv=e1000e unused=igb_uio 
+0000:02:00.0 'Ethernet Controller 10G X550T 1563' if=enp2s0f0 drv=ixgbe unused=igb_uio 
+0000:02:00.1 'Ethernet Controller 10G X550T 1563' if=enp2s0f1 drv=ixgbe unused=igb_uio 
+
+$ sudo python3 $DPDK_DIR/usertools/dpdk-devbind.py --bind=igb_uio 02:00.0
+$ sudo python3 $DPDK_DIR/usertools/dpdk-devbind.py --bind=igb_uio 02:00.1
+$ python3 $DPDK_DIR/usertools/dpdk-devbind.py --status
+
+Network devices using DPDK-compatible driver
+============================================
+0000:02:00.0 'Ethernet Controller 10G X550T 1563' drv=igb_uio unused=ixgbe
+0000:02:00.1 'Ethernet Controller 10G X550T 1563' drv=igb_uio unused=ixgbe
+
+Network devices using kernel driver
+===================================
+0000:00:1f.6 'Ethernet Connection (7) I219-LM 15bb' if=eno1 drv=e1000e unused=igb_uio 
+
+
+$ echo "export RTE_SDK=/usr/src/dpdk-19.11" >> ~/.bashrc
+$ echo "export RTE_TARGET=x86_64-native-linuxapp-gcc" >> ~/.bashrc
+$ . ./.bashrc
+$ cd ~/Downloads/
+$ mkdir my_rte_app
+$ cd my_rte_app/
+$ cp -r $RTE_SDK/examples/helloworld .
+$ cd helloworld
+$ make
+/bin/sh: 1: pkg-config: not found        ??????????????
+/bin/sh: 1: pkg-config: not found        ??????????????
+  CC main.o
+  LD helloworld
+  INSTALL-APP helloworld
+  INSTALL-MAP helloworld.map
+
+$ cd buildsudo/app
+$ sudo ./helloworld -l 5-6 -n 4
+EAL: Detected 12 lcore(s)
+EAL: Detected 1 NUMA nodes
+EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
+EAL: Selected IOVA mode 'PA'
+EAL: Probing VFIO support...
+EAL: PCI device 0000:00:1f.6 on NUMA socket -1        ??????????????
+EAL:   Invalid NUMA socket, default to 0
+EAL:   probe driver: 8086:15bb net_e1000_em
+EAL: PCI device 0000:02:00.0 on NUMA socket -1        ??????????????
+EAL:   Invalid NUMA socket, default to 0
+EAL:   probe driver: 8086:1563 net_ixgbe
+EAL: PCI device 0000:02:00.1 on NUMA socket -1        ??????????????
+EAL:   Invalid NUMA socket, default to 0
+EAL:   probe driver: 8086:1563 net_ixgbe
+hello from core 6
+hello from core 5
+
+
+
+
+
+============== DPDK Pkggen =====================
+#sudo apt-get install -y wget patch libpcap-dev
+$ sudo apt-get install -y libpcap-dev
+Download from https://git.dpdk.org/apps/pktgen-dpdk/
+$ tar xvfz pktgen-19.12.0.tar.gz
+$ cd pktgen-19.12.0
+#in case make doesn't work. In my case, it lacks lua.h file, solved by install liblua5.3-dev
+#upgrade "Important security updates(bionic-security)" and "Recommended updates(bionic-updates)"
+$ sudo apt-get install liblua5.3-dev  // or liblua5.2-dev depends on the lua version in system
+$ make
+
+$ sudo -E ~/Downloads/pktgen-19.12.0/app/x86_64-native-linuxapp-gcc/pktgen -l 2-11 -n 4 -v --proc-type auto -w 0000:02:00.0 -w 0000:02:00.1 --file-prefix pg -- -v -P -T -m "[4-5:6-7].0, [8-9:10-11].1"
+
