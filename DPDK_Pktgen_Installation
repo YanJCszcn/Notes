@@ -1,4 +1,4 @@
-1. DPDK Linux install and getting start: http://doc.dpdk.org/guides/linux_gsg/#.
+1. DPDK Document of Linux install and getting start: http://doc.dpdk.org/guides/linux_gsg/#.
     DPDK is open source. It provide NIC driver which can transfer data much faster between NIC and CPU RAM.
 2. Pktgen is an application SW which can use DPDK NIC driver. https://pktgen-dpdk.readthedocs.io/en/latest/getting_started.html。
 3. Not all the NIC or PC supports DPDK. Supported hardware list is here: http://core.dpdk.org/supported/
